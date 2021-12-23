@@ -1,0 +1,4 @@
+Charge Controller
+=================
+
+This controller has connectivity for CAN and EVSE as well as 4 x 12V digital inputs and 4 x low side switches.
