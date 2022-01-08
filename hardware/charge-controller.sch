@@ -594,10 +594,10 @@ Text Notes 6900 950  0    50   ~ 0
 Text Notes 8800 4050 0    50   ~ 0
 CAN
 $Comp
-L Connector_Generic:Conn_02x03_Top_Bottom J2
+L Connector_Generic:Conn_02x03_Top_Bottom J1
 U 1 1 61C657A9
 P 5100 1450
-F 0 "J2" H 5150 1767 50  0000 C CNN
+F 0 "J1" H 5150 1767 50  0000 C CNN
 F 1 "Conn_02x03_Odd_Even" H 5150 1676 50  0000 C CNN
 F 2 "Connector_Molex:Molex_Micro-Fit_3.0_43045-0600_2x03_P3.00mm_Horizontal" H 5100 1450 50  0001 C CNN
 F 3 "~" H 5100 1450 50  0001 C CNN
@@ -992,10 +992,10 @@ OUT1
 Text GLabel 9200 2800 0    50   Input ~ 0
 IN1
 $Comp
-L Connector_Generic:Conn_02x04_Top_Bottom J1
+L Connector_Generic:Conn_02x04_Top_Bottom J2
 U 1 1 61C6623C
 P 5000 2050
-F 0 "J1" H 5050 2367 50  0000 C CNN
+F 0 "J2" H 5050 2367 50  0000 C CNN
 F 1 "Conn_02x04_Odd_Even" H 5050 2276 50  0000 C CNN
 F 2 "Connector_Molex:Molex_Micro-Fit_3.0_43045-0800_2x04_P3.00mm_Horizontal" H 5000 2050 50  0001 C CNN
 F 3 "~" H 5000 2050 50  0001 C CNN
