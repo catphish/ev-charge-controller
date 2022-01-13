@@ -34,7 +34,7 @@
   )
 
   (setup
-    (last_trace_width 0.8)
+    (last_trace_width 0.25)
     (user_trace_width 0.4)
     (user_trace_width 0.8)
     (user_trace_width 1)
@@ -175,6 +175,30 @@
     (add_net "Net-(Q6-Pad1)")
     (add_net "Net-(R13-Pad1)")
     (add_net "Net-(R14-Pad2)")
+    (add_net "Net-(U2-Pad1)")
+    (add_net "Net-(U2-Pad10)")
+    (add_net "Net-(U2-Pad11)")
+    (add_net "Net-(U2-Pad15)")
+    (add_net "Net-(U2-Pad2)")
+    (add_net "Net-(U2-Pad20)")
+    (add_net "Net-(U2-Pad30)")
+    (add_net "Net-(U2-Pad35)")
+    (add_net "Net-(U2-Pad37)")
+    (add_net "Net-(U2-Pad40)")
+    (add_net "Net-(U2-Pad41)")
+    (add_net "Net-(U2-Pad43)")
+    (add_net "Net-(U2-Pad5)")
+    (add_net "Net-(U2-Pad7)")
+    (add_net "Net-(U3-Pad11)")
+    (add_net "Net-(U3-Pad12)")
+    (add_net "Net-(U3-Pad15)")
+    (add_net "Net-(U3-Pad3)")
+    (add_net "Net-(U3-Pad4)")
+    (add_net "Net-(U3-Pad5)")
+    (add_net "Net-(U3-Pad6)")
+    (add_net "Net-(U3-Pad7)")
+    (add_net "Net-(U3-Pad8)")
+    (add_net "Net-(U4-Pad5)")
     (add_net OUT1)
     (add_net OUT12_1)
     (add_net OUT12_2)
@@ -544,7 +568,7 @@
     (fp_text reference R4 (at -2 0 180) (layer F.SilkS)
       (effects (font (size 1 1) (thickness 0.15)))
     )
-    (fp_text value 4.7k (at 0 1.43 90) (layer F.Fab)
+    (fp_text value 5.6k (at 0 1.43 90) (layer F.Fab)
       (effects (font (size 1 1) (thickness 0.15)))
     )
     (fp_line (start -0.8 0.4125) (end -0.8 -0.4125) (layer F.Fab) (width 0.1))
@@ -580,7 +604,7 @@
     (fp_text reference R6 (at -2 0 180) (layer F.SilkS)
       (effects (font (size 1 1) (thickness 0.15)))
     )
-    (fp_text value 4.7k (at 0 1.43 90) (layer F.Fab)
+    (fp_text value 5.6k (at 0 1.43 90) (layer F.Fab)
       (effects (font (size 1 1) (thickness 0.15)))
     )
     (fp_line (start -0.8 0.4125) (end -0.8 -0.4125) (layer F.Fab) (width 0.1))
@@ -616,7 +640,7 @@
     (fp_text reference R8 (at -2 0 180) (layer F.SilkS)
       (effects (font (size 1 1) (thickness 0.15)))
     )
-    (fp_text value 4.7k (at 0 1.43 90) (layer F.Fab)
+    (fp_text value 5.6k (at 0 1.43 90) (layer F.Fab)
       (effects (font (size 1 1) (thickness 0.15)))
     )
     (fp_line (start -0.8 0.4125) (end -0.8 -0.4125) (layer F.Fab) (width 0.1))
@@ -740,7 +764,7 @@
     (fp_text reference R2 (at -2 0 180) (layer F.SilkS)
       (effects (font (size 1 1) (thickness 0.15)))
     )
-    (fp_text value 4.7k (at 0 1.43 90) (layer F.Fab)
+    (fp_text value 5.6k (at 0 1.43 90) (layer F.Fab)
       (effects (font (size 1 1) (thickness 0.15)))
     )
     (fp_line (start 1.48 0.73) (end -1.48 0.73) (layer F.CrtYd) (width 0.05))
@@ -1309,7 +1333,7 @@
     (fp_text reference C5 (at 2.5 0) (layer F.SilkS)
       (effects (font (size 1 1) (thickness 0.15)))
     )
-    (fp_text value 1u (at 0 1.43 90) (layer F.Fab)
+    (fp_text value 100n (at 0 1.43 90) (layer F.Fab)
       (effects (font (size 1 1) (thickness 0.15)))
     )
     (fp_line (start -0.8 0.4) (end -0.8 -0.4) (layer F.Fab) (width 0.1))
@@ -2645,7 +2669,7 @@
     (priority 2)
     (connect_pads yes (clearance 0))
     (min_thickness 0.254)
-    (fill (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
+    (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
     (polygon
       (pts
         (xy 166.5 74.5) (xy 159.5 74.5) (xy 159.5 65.5) (xy 166.5 65.5)
@@ -2670,7 +2694,7 @@
     (priority 3)
     (connect_pads yes (clearance 0))
     (min_thickness 0.254)
-    (fill (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
+    (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
     (polygon
       (pts
         (xy 159.5 68.8) (xy 159.5 74.5) (xy 148 74.5) (xy 148 65.5) (xy 156.5 65.5)
@@ -2710,7 +2734,7 @@
     (priority 4)
     (connect_pads yes (clearance 0))
     (min_thickness 0.254)
-    (fill (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
+    (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
     (polygon
       (pts
         (xy 158.2 70.3) (xy 151.5 70.3) (xy 151.5 69) (xy 154.8 69) (xy 155.3 69.5)
@@ -2744,7 +2768,7 @@
     (priority 4)
     (connect_pads yes (clearance 0))
     (min_thickness 0.254)
-    (fill (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
+    (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
     (polygon
       (pts
         (xy 159.5 68.8) (xy 156.5 68.8) (xy 156.5 65.5) (xy 159.5 65.5)
@@ -2760,7 +2784,7 @@
   (zone (net 1) (net_name GND) (layer B.Cu) (tstamp 61DF7B05) (hatch edge 0.508)
     (connect_pads yes (clearance 0.508))
     (min_thickness 0.254)
-    (fill (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
+    (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
     (polygon
       (pts
         (xy 175.5 115) (xy 82.5 115) (xy 82.5 62) (xy 176 62)
@@ -2926,7 +2950,7 @@
     (priority 1)
     (connect_pads yes (clearance 0))
     (min_thickness 0.254)
-    (fill (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
+    (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
     (polygon
       (pts
         (xy 176 115) (xy 82.5 115) (xy 82.5 62) (xy 176 62)
@@ -3969,7 +3993,7 @@
     (priority 1)
     (connect_pads yes (clearance 0))
     (min_thickness 0.254)
-    (fill (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
+    (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
     (polygon
       (pts
         (xy 176 62) (xy 176 115) (xy 82.5 115) (xy 82.5 62)
