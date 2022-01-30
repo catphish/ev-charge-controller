@@ -20,14 +20,13 @@
 #define SPI_CS    17
 #define SPI_CLK   18
 #define SPI_MOSI  19
-#define CAN_INT   20
 #define CAN_CLK   21 // 8MHz clock for CAN
-#define CAN_SLEEP 22
 
-// EVSE pins
-#define EVSE_PP  26
-#define EVSE_CP  27
-#define EVSE_OUT 28
+// General purpose outputs
+#define OUT1 2
+#define OUT2 4
+#define OUT3 6
+#define OUT4 9
 
 // Buffers for received data
 uint8_t can_data_buffer[16];
@@ -134,39 +133,26 @@ uint8_t CAN_receive(uint8_t * can_rx_data) {
   return(length);
 }
 
-void CAN_transmit(uint16_t id, uint8_t* data, uint8_t length) {
-  CAN_reg_write(REG_TXBnSIDH(0), id >> 3); // Set CAN ID
-  CAN_reg_write(REG_TXBnSIDL(0), id << 5); // Set CAN ID
-  CAN_reg_write(REG_TXBnEID8(0), 0x00);    // Extended ID
-  CAN_reg_write(REG_TXBnEID0(0), 0x00);    // Extended ID
-
-  CAN_reg_write(REG_TXBnDLC(0), length);   // Frame length
-
-  for (int i = 0; i < length; i++) {       // Write the frame data
-    CAN_reg_write(REG_TXBnD0(0) + i, data[i]);
-  }
-
-  CAN_reg_write(REG_TXBnCTRL(0), 0x08);    // Start sending
-  busy_wait_us(1000); // Allow up to 1ms to transmit
-  CAN_reg_write(REG_TXBnCTRL(0), 0);    // Stop sending
-  CAN_reg_modify(REG_CANINTF, FLAG_TXnIF(0), 0x00); // Clear interrupt flag
+void reconfigure_clocks() {
+  // Clock the peripherals, ref clk, and rtc from the 12MHz crystal oscillator
+  clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12000000, 12000000);
+  clock_configure(clk_ref, CLOCKS_CLK_REF_CTRL_SRC_VALUE_XOSC_CLKSRC, 0, 12000000, 12000000);
+  clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12000000, 46875);
+  // Shut down unused clocks, PLLs and oscillators
+  clock_stop(clk_usb);
+  clock_stop(clk_usb);
+  clock_stop(clk_adc);
+  pll_deinit(pll_usb);
+  rosc_disable();
+  // Disable more clocks when sleeping
+  clocks_hw->sleep_en0 = 0;
+  clocks_hw->sleep_en1 = CLOCKS_WAKE_EN1_CLK_SYS_TIMER_BITS;
 }
-
-void gpio_callback(uint gpio, uint32_t events) {
-  CAN_receive(can_data_buffer);
-  gpio_acknowledge_irq(CAN_INT, GPIO_IRQ_LEVEL_LOW);
-}
-
 int main()
 {
   // Set system clock to 80MHz, this seems like a reasonable value for the 4MHz data
   set_sys_clock_khz(80000, true);
-
-  // Configure CAN interrupt input pin
-  gpio_init(CAN_INT);
-  gpio_set_dir(CAN_INT,GPIO_IN);
-  gpio_disable_pulls(CAN_INT);
-  gpio_set_irq_enabled_with_callback(CAN_INT, GPIO_IRQ_LEVEL_LOW, true, &gpio_callback);
+  reconfigure_clocks();
 
   // Output 8MHz square wave on CAN_CLK pin
   clock_gpio_init(CAN_CLK, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 10);
@@ -175,33 +161,27 @@ int main()
   SPI_configure();
   // Set up CAN to receive messages
   CAN_reset();
-  CAN_configure(0x4F0);
+  CAN_configure(0x4F1);
+
+  gpio_init(OUT1);
+  gpio_set_dir(OUT1, GPIO_OUT);
+  gpio_init(OUT2);
+  gpio_set_dir(OUT2, GPIO_OUT);
+  gpio_init(OUT3);
+  gpio_set_dir(OUT3, GPIO_OUT);
+  gpio_init(OUT4);
+  gpio_set_dir(OUT4, GPIO_OUT);
+
+  gpio_put(OUT1, 1);
+  sleep_ms(1000);
+  gpio_put(OUT3, 1);
 
   // Main loop.
   while (1) {
-    // gpio_init(EVSE_OUT);
-    // gpio_set_dir(EVSE_OUT, GPIO_OUT);
-    // gpio_put(EVSE_OUT, 1);
-    // busy_wait_ms(2000);
-    // gpio_init(EVSE_OUT);
-    // gpio_set_dir(EVSE_OUT, GPIO_OUT);
-    // gpio_put(EVSE_OUT, 0);
-    // busy_wait_ms(5000);
-    uint slice_num = pwm_gpio_to_slice_num(EVSE_CP);
-
-    // Count once for every 100 cycles the PWM B input is high
-    gpio_set_pulls(EVSE_CP, true, false);
-    pwm_config cfg = pwm_get_default_config();
-    pwm_config_set_clkdiv_mode(&cfg, PWM_DIV_B_HIGH);
-    pwm_config_set_clkdiv(&cfg, 10);
-    pwm_init(slice_num, &cfg, false);
-    gpio_set_function(EVSE_CP, GPIO_FUNC_PWM);
-
-    pwm_set_enabled(slice_num, true);
-    sleep_ms(5);
-    pwm_set_enabled(slice_num, false);
-    uint32_t count = pwm_get_counter(slice_num);
-    CAN_transmit(0x11, &count, 2);
-    sleep_ms(1000);
+    if(CAN_receive(can_data_buffer)) {
+      uint16_t min_cell = ((uint16_t)can_data_buffer[2] << 8) | can_data_buffer[1];
+      gpio_put(OUT2, min_cell < 44564); // 3.4V
+      gpio_put(OUT4, min_cell < 41942); // 3.2V
+    }
   }
 }
