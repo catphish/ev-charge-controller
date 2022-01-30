@@ -10,17 +10,24 @@
 #include "hardware/sync.h"
 #include "bms.pio.h"
 #include "hardware/regs/io_bank0.h"
+#include "hardware/pwm.h"
 #include "can.h"
 #include <math.h>
 
 // Define pins for SPI (to CAN)
-#define SPI_PORT spi0
-#define SPI_MISO 16
-#define SPI_CS   17
-#define SPI_CLK  18
-#define SPI_MOSI 19
-#define CAN_INT  20
-#define CAN_CLK  21 // 8MHz clock for CAN
+#define SPI_PORT  spi0
+#define SPI_MISO  16
+#define SPI_CS    17
+#define SPI_CLK   18
+#define SPI_MOSI  19
+#define CAN_INT   20
+#define CAN_CLK   21 // 8MHz clock for CAN
+#define CAN_SLEEP 22
+
+// EVSE pins
+#define EVSE_PP  26
+#define EVSE_CP  27
+#define EVSE_OUT 28
 
 // Buffers for received data
 uint8_t can_data_buffer[16];
@@ -154,19 +161,6 @@ int main()
 {
   // Set system clock to 80MHz, this seems like a reasonable value for the 4MHz data
   set_sys_clock_khz(80000, true);
-  // Clock the peripherals, ref clk, and rtc from the 12MHz crystal oscillator
-  clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12000000, 12000000);
-  clock_configure(clk_ref, CLOCKS_CLK_REF_CTRL_SRC_VALUE_XOSC_CLKSRC, 0, 12000000, 12000000);
-  clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12000000, 46875);
-  // Shut down unused clocks, PLLs and oscillators
-  clock_stop(clk_usb);
-  clock_stop(clk_usb);
-  clock_stop(clk_adc);
-  pll_deinit(pll_usb);
-  rosc_disable();
-  // Disable more clocks when sleeping
-  clocks_hw->sleep_en0 = CLOCKS_SLEEP_EN0_CLK_SYS_PLL_SYS_BITS;
-  clocks_hw->sleep_en1 = CLOCKS_SLEEP_EN1_CLK_SYS_XOSC_BITS | CLOCKS_SLEEP_EN1_CLK_SYS_TIMER_BITS;
 
   // Configure CAN interrupt input pin
   gpio_init(CAN_INT);
@@ -185,5 +179,29 @@ int main()
 
   // Main loop.
   while (1) {
+    // gpio_init(EVSE_OUT);
+    // gpio_set_dir(EVSE_OUT, GPIO_OUT);
+    // gpio_put(EVSE_OUT, 1);
+    // busy_wait_ms(2000);
+    // gpio_init(EVSE_OUT);
+    // gpio_set_dir(EVSE_OUT, GPIO_OUT);
+    // gpio_put(EVSE_OUT, 0);
+    // busy_wait_ms(5000);
+    uint slice_num = pwm_gpio_to_slice_num(EVSE_CP);
+
+    // Count once for every 100 cycles the PWM B input is high
+    gpio_set_pulls(EVSE_CP, true, false);
+    pwm_config cfg = pwm_get_default_config();
+    pwm_config_set_clkdiv_mode(&cfg, PWM_DIV_B_HIGH);
+    pwm_config_set_clkdiv(&cfg, 10);
+    pwm_init(slice_num, &cfg, false);
+    gpio_set_function(EVSE_CP, GPIO_FUNC_PWM);
+
+    pwm_set_enabled(slice_num, true);
+    sleep_ms(5);
+    pwm_set_enabled(slice_num, false);
+    uint32_t count = pwm_get_counter(slice_num);
+    CAN_transmit(0x11, &count, 2);
+    sleep_ms(1000);
   }
 }
