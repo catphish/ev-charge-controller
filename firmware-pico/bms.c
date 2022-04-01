@@ -133,6 +133,11 @@ uint8_t CAN_receive(uint8_t * can_rx_data) {
   return(length);
 }
 
+float temperature(uint16_t adc) {
+  float r = 0.0000000347363427499292f * adc * adc - 0.001025770762903f * adc + 2.68235340614337f;
+  float t = log(r) * -30.5280964239816f + 95.6841501312447f;
+  return t;
+}
 void reconfigure_clocks() {
   // Clock the peripherals, ref clk, and rtc from the 12MHz crystal oscillator
   clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12000000, 12000000);
@@ -145,8 +150,8 @@ void reconfigure_clocks() {
   pll_deinit(pll_usb);
   rosc_disable();
   // Disable more clocks when sleeping
-  clocks_hw->sleep_en0 = 0;
-  clocks_hw->sleep_en1 = CLOCKS_WAKE_EN1_CLK_SYS_TIMER_BITS;
+  // clocks_hw->sleep_en0 = 0;
+  // clocks_hw->sleep_en1 = CLOCKS_WAKE_EN1_CLK_SYS_TIMER_BITS;
 }
 int main()
 {
@@ -163,25 +168,37 @@ int main()
   CAN_reset();
   CAN_configure(0x4F1);
 
+  // Configure PWM
+  gpio_set_function(OUT2, GPIO_FUNC_PWM);
+  uint slice_num = pwm_gpio_to_slice_num(OUT2);
+  pwm_set_clkdiv(slice_num,1000);
+  pwm_set_wrap(slice_num, 10486); // 4.0V - 3.2V
+  pwm_set_enabled(slice_num, true);
+
   gpio_init(OUT1);
   gpio_set_dir(OUT1, GPIO_OUT);
-  gpio_init(OUT2);
-  gpio_set_dir(OUT2, GPIO_OUT);
+ // gpio_init(OUT2);
+ // gpio_set_dir(OUT2, GPIO_OUT);
   gpio_init(OUT3);
   gpio_set_dir(OUT3, GPIO_OUT);
   gpio_init(OUT4);
   gpio_set_dir(OUT4, GPIO_OUT);
 
   gpio_put(OUT1, 1);
-  sleep_ms(1000);
+  sleep_ms(2000);
   gpio_put(OUT3, 1);
 
   // Main loop.
   while (1) {
     if(CAN_receive(can_data_buffer)) {
-      uint16_t min_cell = ((uint16_t)can_data_buffer[2] << 8) | can_data_buffer[1];
-      gpio_put(OUT2, min_cell < 44564); // 3.4V
-      gpio_put(OUT4, min_cell < 41942); // 3.2V
+      uint16_t min_cell = ((uint16_t)can_data_buffer[2] << 8) | can_data_buffer[3];
+      uint16_t max_temp = ((uint16_t)can_data_buffer[4] << 8) | can_data_buffer[5];
+      int32_t fuel_gauge = min_cell;
+      fuel_gauge -= 41942;                        // Offset by 3.2V
+      if(fuel_gauge > 10486) fuel_gauge = 10486;  // 4.0V is full
+      if(fuel_gauge < 0) fuel_gauge = 0;          // 3.2V is empty
+      pwm_set_gpio_level(OUT2, fuel_gauge);
+      gpio_put(OUT4,temperature(max_temp) > 40.f); // Temperature warning at 40C
     }
   }
 }
