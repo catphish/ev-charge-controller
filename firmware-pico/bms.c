@@ -199,6 +199,11 @@ int main()
       if(fuel_gauge < 0) fuel_gauge = 0;          // 3.2V is empty
       pwm_set_gpio_level(OUT2, fuel_gauge);
       gpio_put(OUT4,temperature(max_temp) > 40.f); // Temperature warning at 40C
+      // If voltage is below 3.2V, open the contactors.
+      if(fuel_gauge == 0) {
+        gpio_put(OUT1, 0);
+        gpio_put(OUT3, 0);
+      }
     }
   }
 }
