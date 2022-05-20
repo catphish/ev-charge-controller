@@ -1,0 +1,37 @@
+.program pwm_measurement
+.wrap_target
+start:
+  mov isr, y     // Copy Y to ISR, invert bits to get positive count
+  push noblock   // ...and push to CPU
+  pull noblock   // Pull the timeout
+  mov x, osr     // Set X to timeout (it will be reloaded by the next pull)
+  mov y, osr     // Set Y to timeout
+timer_loop1:
+  jmp y-- check1 // Jump to check if we haven't timed out yet
+  jmp start      // Timeout, X is zero, return data
+check1:
+  jmp pin timer_loop1 // Pin remains high, don't time yet
+  mov y, osr     // Set Y to timeout
+timer_loop:
+  jmp y-- check  // Jump to check if we haven't timed out yet
+  jmp start      // Timeout, X is zero, return data
+check:
+  jmp pin start  // Pin has returned to one, return data
+  jmp timer_loop // Pin is still low, keep waiting
+.wrap
+
+% c-sdk {
+static inline void pwm_measurement_program_init(PIO pio, uint sm, uint offset, uint pwm) {
+    pio_sm_set_consecutive_pindirs(pio, sm, pwm, 1, false);
+    pio_gpio_init(pio, pwm);
+    gpio_pull_up(pwm);
+    pio_sm_config c = pwm_measurement_program_get_default_config(offset);
+    sm_config_set_in_pins(&c, pwm);
+    sm_config_set_jmp_pin(&c, pwm);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_NONE);
+    sm_config_set_clkdiv(&c, 1);
+    sm_config_set_out_shift(&c, false, false, 32);
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
