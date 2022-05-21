@@ -14,6 +14,8 @@
 #include "can.h"
 #include <math.h>
 
+//#define USB_MODE
+
 // Define pins for SPI (to CAN)
 #define SPI_PORT  spi0
 #define SPI_MISO  16
@@ -36,6 +38,7 @@ uint16_t max_temp;
 uint16_t max_cell;
 uint16_t data_timer;
 uint8_t error;
+uint8_t charging;
 
 void SPI_configure() {
   spi_init(SPI_PORT, 1000000);
@@ -139,12 +142,10 @@ uint8_t CAN_receive() {
     if(!n) {
       // 0x4F0
       pack_voltage = (received_data[0] << 24) | (received_data[1] << 16) | (received_data[2] << 8) | (received_data[3] << 0);
-      //printf("0x4F0 %i\n", pack_voltage);
     } else {
       // 0x4F1
       max_cell = (received_data[0] << 8) | (received_data[1] << 0);
       max_temp = (received_data[4] << 8) | (received_data[5] << 0);
-      //printf("0x4F1 %i %i\n", max_cell, max_temp);
     }
   }
 
@@ -190,7 +191,6 @@ void reconfigure_clocks() {
   clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12000000, 46875);
   // Shut down unused clocks, PLLs and oscillators
   clock_stop(clk_usb);
-  clock_stop(clk_usb);
   clock_stop(clk_adc);
   pll_deinit(pll_usb);
   rosc_disable();
@@ -201,17 +201,18 @@ void reconfigure_clocks() {
 
 void deep_sleep() {
   // Deep sleep until woken by hardware
-  gpio_put(CAN_SLEEP, 1); // Sleep the CAN transceiver
   CAN_reg_write(REG_CANCTRL, MODE_SLEEP);
+  gpio_put(CAN_SLEEP, 1); // Sleep the CAN transceiver
   uint32_t s = save_and_disable_interrupts();
-  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_HIGH, true, &gpio_callback);
-  gpio_set_dormant_irq_enabled(EVSE_CP, GPIO_IRQ_LEVEL_HIGH, true);
+  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_LOW, true, &gpio_callback);
+  gpio_set_dormant_irq_enabled(EVSE_CP, GPIO_IRQ_LEVEL_LOW, true);
   clocks_hw->sleep_en0 = 0;
   clocks_hw->sleep_en1 = 0;
   xosc_dormant();
   reconfigure_clocks();
-  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_HIGH, false, &gpio_callback);
+  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_LOW, false, &gpio_callback);
   restore_interrupts(s);
+  SPI_configure();
   gpio_put(CAN_SLEEP, 0); // Wake the CAN transceiver
   CAN_reg_write(REG_CANCTRL, MODE_NORMAL);
 }
@@ -226,8 +227,11 @@ int main()
 {
   // Set system clock to 80MHz
   set_sys_clock_khz(80000, true);
-  //reconfigure_clocks();
-  stdio_init_all();
+  #ifdef USB_MODE
+      stdio_init_all();
+  #else
+    reconfigure_clocks();
+  #endif
 
   // CP output
   gpio_init(EVSE_OUT);
@@ -279,7 +283,9 @@ int main()
 
   // Main loop.
   while (1) {
-    sleep_ms(500);
+    // Sleep for a minimum of 500ms per loop
+    busy_wait_ms(500);
+
     // Invalidate data if timer expires
     data_timer++;
     if (data_timer > 10) {
@@ -289,20 +295,23 @@ int main()
     }
 
     if(pwm_value > 0) {
-      if(!pack_voltage || !max_cell || !max_temp) {
-        error = 1;
+      if((!pack_voltage || !max_cell || !max_temp) && charging) {
+        error = 1; // Failed to receive CAN data while charging
       } else if(max_cell > 54394) {
-        error = 2;
+        error = 2; // Over voltage on one cell
       } else if(temperature(max_temp) > 45.f) {
-        error = 3;
+        error = 3; // Over temperature
       }
       if(error) {
         if(error == 1)
-          printf("BMS: No CAN data received\n");
+          printf("BMS: CAN data timeout\n");
         if(error == 2)
           printf("BMS: Cell above 4.15V - charging not permitted\n");
         if(error == 2)
           printf("BMS: Temperature above 45C - charging not permitted\n");
+        gpio_put(EVSE_OUT, 0);
+      } else if(!pack_voltage || !max_cell || !max_temp) {
+        printf("BMS: Waiting for CAN data\n");
         gpio_put(EVSE_OUT, 0);
       } else {
         uint32_t ac_current = 100000 - pwm_value - 138;
@@ -314,12 +323,22 @@ int main()
         printf("  DC Current Limit: %i.%iA\n", dc_current / 1000, dc_current % 1000);
         printf("  Temperature: %.2fC\n", temperature(max_temp));
         gpio_put(EVSE_OUT, 1);
+        charging = 1;
       }
     } else {
-      // Clear errors when unplugged
+      // EVSE unplugges unplugged, clear errors and stop charging
       error = 0;
+      charging = 0;
       printf("EVSE: NO SIGNAL\n");
       gpio_put(EVSE_OUT, 0);
+      // Invalidate data
+      pack_voltage = 0;
+      max_cell = 0;
+      max_temp = 0;
+      #ifndef USB_MODE
+        // Go into low power sleep unless USB mode
+        deep_sleep();
+      #endif
     }
   }
 }
