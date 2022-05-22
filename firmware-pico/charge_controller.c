@@ -15,6 +15,7 @@
 #include <math.h>
 
 //#define USB_MODE
+uint16_t target_voltage = 41 * 16 * 10;
 
 // Define pins for SPI (to CAN)
 #define SPI_PORT  spi0
@@ -153,7 +154,7 @@ uint8_t CAN_receive() {
   return(length);
 }
 
-void CAN_transmit(uint8_t ext, uint16_t id, uint8_t* data, uint8_t length) {
+void CAN_transmit(uint8_t ext, uint32_t id, uint8_t* data, uint8_t length) {
   if(ext) {
     CAN_reg_write(REG_TXBnEID0(0), id);
     CAN_reg_write(REG_TXBnEID8(0), id >> 8);
@@ -286,6 +287,10 @@ int main()
     // Sleep for a minimum of 500ms per loop
     busy_wait_ms(500);
 
+    uint32_t ac_current = 100000 - pwm_value - 138;
+    ac_current = ac_current * 2250 / 1000;
+    uint32_t dc_current = ac_current * (3145728>>8) / (pack_voltage>>8);
+
     // Invalidate data if timer expires
     data_timer++;
     if (data_timer > 10) {
@@ -299,7 +304,7 @@ int main()
         error = 1; // Failed to receive CAN data while charging
       } else if(max_cell > 54394) {
         error = 2; // Over voltage on one cell
-      } else if(temperature(max_temp) > 45.f) {
+      } else if(max_temp && temperature(max_temp) > 45.f) {
         error = 3; // Over temperature
       }
       if(error) {
@@ -307,28 +312,33 @@ int main()
           printf("BMS: CAN data timeout\n");
         if(error == 2)
           printf("BMS: Cell above 4.15V - charging not permitted\n");
-        if(error == 2)
+        if(error == 3)
           printf("BMS: Temperature above 45C - charging not permitted\n");
         gpio_put(EVSE_OUT, 0);
+        // Bit 5 is 1 (stop)
+        CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, (dc_current/100) >> 8, dc_current/100, 1, 0, 0, 0 }, 8);
       } else if(!pack_voltage || !max_cell || !max_temp) {
         printf("BMS: Waiting for CAN data\n");
         gpio_put(EVSE_OUT, 0);
+        // Bit 5 is 1 (stop)
+        CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, (dc_current/100) >> 8, dc_current/100, 1, 0, 0, 0 }, 8);
       } else {
-        uint32_t ac_current = 100000 - pwm_value - 138;
-        ac_current = ac_current * 2250 / 1000;
-        uint32_t dc_current = ac_current * (3145728>>8) / (pack_voltage>>8);
         printf("Charging\n");
         printf("  DC Voltage: %i.%iV\n", pack_voltage / 13107, pack_voltage % 13107);
         printf("  AC Current Limit: %i.%iA\n", ac_current / 1000, ac_current % 1000);
         printf("  DC Current Limit: %i.%iA\n", dc_current / 1000, dc_current % 1000);
         printf("  Temperature: %.2fC\n", temperature(max_temp));
         gpio_put(EVSE_OUT, 1);
+        // Bit 5 is 0 (charging)
+        CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, (dc_current/100) >> 8, dc_current/100, 0, 0, 0, 0 }, 8);
         charging = 1;
       }
     } else {
       // EVSE unplugges unplugged, clear errors and stop charging
       error = 0;
       charging = 0;
+      // Bit 5 is 1 (stop)
+      CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, (dc_current/100) >> 8, dc_current/100, 1, 0, 0, 0 }, 8);
       printf("EVSE: NO SIGNAL\n");
       gpio_put(EVSE_OUT, 0);
       // Invalidate data
