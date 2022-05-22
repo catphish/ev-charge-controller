@@ -158,7 +158,7 @@ void CAN_transmit(uint8_t ext, uint32_t id, uint8_t* data, uint8_t length) {
   if(ext) {
     CAN_reg_write(REG_TXBnEID0(0), id);
     CAN_reg_write(REG_TXBnEID8(0), id >> 8);
-    CAN_reg_write(REG_TXBnSIDL(0), ((id >> 16) & 3) | FLAG_EXIDE | ((id >> 18) & 7));
+    CAN_reg_write(REG_TXBnSIDL(0), ((id >> 16) & 3) | FLAG_EXIDE | (((id >> 18) & 7)<<5));
     CAN_reg_write(REG_TXBnSIDH(0), id >> 21);
   } else {
     CAN_reg_write(REG_TXBnSIDH(0), id >> 3); // Set CAN ID
@@ -201,6 +201,8 @@ void reconfigure_clocks() {
 }
 
 void deep_sleep() {
+  // Wait 100ms for CAN to finish transmitting
+  busy_wait_ms(100);
   // Deep sleep until woken by hardware
   CAN_reg_write(REG_CANCTRL, MODE_SLEEP);
   gpio_put(CAN_SLEEP, 1); // Sleep the CAN transceiver
@@ -316,12 +318,12 @@ int main()
           printf("BMS: Temperature above 45C - charging not permitted\n");
         gpio_put(EVSE_OUT, 0);
         // Bit 5 is 1 (stop)
-        CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, (dc_current/100) >> 8, dc_current/100, 1, 0, 0, 0 }, 8);
+        CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0 }, 8);
       } else if(!pack_voltage || !max_cell || !max_temp) {
         printf("BMS: Waiting for CAN data\n");
         gpio_put(EVSE_OUT, 0);
         // Bit 5 is 1 (stop)
-        CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, (dc_current/100) >> 8, dc_current/100, 1, 0, 0, 0 }, 8);
+        CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0 }, 8);
       } else {
         printf("Charging\n");
         printf("  DC Voltage: %i.%iV\n", pack_voltage / 13107, pack_voltage % 13107);
@@ -338,7 +340,7 @@ int main()
       error = 0;
       charging = 0;
       // Bit 5 is 1 (stop)
-      CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, (dc_current/100) >> 8, dc_current/100, 1, 0, 0, 0 }, 8);
+      CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0 }, 8);
       printf("EVSE: NO SIGNAL\n");
       gpio_put(EVSE_OUT, 0);
       // Invalidate data
