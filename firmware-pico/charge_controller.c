@@ -32,6 +32,18 @@ uint16_t target_voltage = 41 * 16 * 10;
 #define EVSE_CP  27
 #define EVSE_OUT 28
 
+// GPIO pins
+#define IN1      14
+#define IN2      13
+#define IN3      12
+#define IN4      11
+#define OUT1     9
+#define OUT2     6
+#define OUT3     4
+#define OUT4     2
+#define IGNITION IN1
+#define DC_DC_EN OUT1
+
 // State
 int32_t pwm_value;
 uint32_t pack_voltage;
@@ -207,13 +219,16 @@ void deep_sleep() {
   CAN_reg_write(REG_CANCTRL, MODE_SLEEP);
   gpio_put(CAN_SLEEP, 1); // Sleep the CAN transceiver
   uint32_t s = save_and_disable_interrupts();
-  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_LOW, true, &gpio_callback);
-  gpio_set_dormant_irq_enabled(EVSE_CP, GPIO_IRQ_LEVEL_LOW, true);
+  gpio_set_irq_enabled_with_callback(EVSE_CP,  GPIO_IRQ_LEVEL_LOW,  true, &gpio_callback);
+  gpio_set_irq_enabled_with_callback(IGNITION, GPIO_IRQ_LEVEL_HIGH, true, &gpio_callback);
+  gpio_set_dormant_irq_enabled(EVSE_CP,  GPIO_IRQ_LEVEL_LOW,  true);
+  gpio_set_dormant_irq_enabled(IGNITION, GPIO_IRQ_LEVEL_HIGH, true);
   clocks_hw->sleep_en0 = 0;
   clocks_hw->sleep_en1 = 0;
   xosc_dormant();
   reconfigure_clocks();
-  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_LOW, false, &gpio_callback);
+  gpio_set_irq_enabled_with_callback(EVSE_CP,  GPIO_IRQ_LEVEL_LOW,  false, &gpio_callback);
+  gpio_set_irq_enabled_with_callback(IGNITION, GPIO_IRQ_LEVEL_HIGH, false, &gpio_callback);
   restore_interrupts(s);
   SPI_configure();
   gpio_put(CAN_SLEEP, 0); // Wake the CAN transceiver
@@ -241,6 +256,16 @@ int main()
   gpio_set_dir(EVSE_OUT, GPIO_OUT);
   gpio_put(EVSE_OUT, 0);
   
+  // Ignition input
+  gpio_init(IGNITION);
+  gpio_set_dir(IGNITION, GPIO_IN);
+  gpio_disable_pulls(IGNITION);
+
+  // DC-DC output
+  gpio_init(DC_DC_EN);
+  gpio_set_dir(DC_DC_EN, GPIO_OUT);
+  gpio_put(DC_DC_EN, 0);
+
   // Configure CAN transceiver sleep line
   gpio_init(CAN_SLEEP);
   gpio_set_dir(CAN_SLEEP, GPIO_OUT);
@@ -259,7 +284,6 @@ int main()
   gpio_set_dir(CAN_INT,GPIO_IN);
   gpio_disable_pulls(CAN_INT);
   gpio_set_irq_enabled_with_callback(CAN_INT, GPIO_IRQ_LEVEL_LOW, true, &gpio_callback);
-
 
   uint32_t dma_channel_1 = dma_claim_unused_channel(true);
   uint32_t dma_channel_2 = dma_claim_unused_channel(true);
@@ -292,6 +316,7 @@ int main()
     uint32_t ac_current = 100000 - pwm_value - 138;
     ac_current = ac_current * 2250 / 1000;
     uint32_t dc_current = ac_current * (3145728>>8) / (pack_voltage>>8);
+    uint8_t ignition = gpio_get(IGNITION);
 
     // Invalidate data if timer expires
     data_timer++;
@@ -317,11 +342,13 @@ int main()
         if(error == 3)
           printf("BMS: Temperature above 45C - charging not permitted\n");
         gpio_put(EVSE_OUT, 0);
+        gpio_put(DC_DC_EN, ignition);
         // Bit 5 is 1 (stop)
         CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0 }, 8);
       } else if(!pack_voltage || !max_cell || !max_temp) {
         printf("BMS: Waiting for CAN data\n");
         gpio_put(EVSE_OUT, 0);
+        gpio_put(DC_DC_EN, ignition);
         // Bit 5 is 1 (stop)
         CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0 }, 8);
       } else {
@@ -331,25 +358,27 @@ int main()
         printf("  DC Current Limit: %i.%iA\n", dc_current / 1000, dc_current % 1000);
         printf("  Temperature: %.2fC\n", temperature(max_temp));
         gpio_put(EVSE_OUT, 1);
+        gpio_put(DC_DC_EN, 1);
         // Bit 5 is 0 (charging)
         CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, (dc_current/100) >> 8, dc_current/100, 0, 0, 0, 0 }, 8);
         charging = 1;
       }
     } else {
-      // EVSE unplugges unplugged, clear errors and stop charging
+      // EVSE unplugged, clear errors and stop charging
       error = 0;
       charging = 0;
       // Bit 5 is 1 (stop)
       CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0 }, 8);
       printf("EVSE: NO SIGNAL\n");
       gpio_put(EVSE_OUT, 0);
+      gpio_put(DC_DC_EN, ignition);
       // Invalidate data
       pack_voltage = 0;
       max_cell = 0;
       max_temp = 0;
       #ifndef USB_MODE
-        // Go into low power sleep unless USB mode
-        deep_sleep();
+        // Go into low power sleep unless USB mode or ignition
+        if(!ignition) deep_sleep();
       #endif
     }
   }
