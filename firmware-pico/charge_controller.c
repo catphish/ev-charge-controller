@@ -15,6 +15,8 @@
 #include <math.h>
 
 //#define USB_MODE
+// Set the final charging voltage in units of 100mV
+// For example 41 (4.1V) * 16 cells * 10 modules
 uint16_t target_voltage = 41 * 16 * 10;
 
 // Define pins for SPI (to CAN)
@@ -42,12 +44,13 @@ uint16_t target_voltage = 41 * 16 * 10;
 #define OUT3     4
 #define OUT4     2
 #define IGNITION IN1
-#define DC_DC_EN OUT1
+#define DC_DC_EN OUT4
 
 // State
 int32_t pwm_value;
 uint32_t pack_voltage;
 uint16_t max_temp;
+uint16_t min_temp;
 uint16_t max_cell;
 uint16_t data_timer;
 uint8_t error;
@@ -159,6 +162,7 @@ uint8_t CAN_receive() {
       // 0x4F1
       max_cell = (received_data[0] << 8) | (received_data[1] << 0);
       max_temp = (received_data[4] << 8) | (received_data[5] << 0);
+      min_temp = (received_data[6] << 8) | (received_data[7] << 0);
     }
   }
 
@@ -245,12 +249,11 @@ int main()
 {
   // Set system clock to 80MHz
   set_sys_clock_khz(80000, true);
-  #ifdef USB_MODE
+  if(USB_MODE)
       stdio_init_all();
-  #else
+  else
     reconfigure_clocks();
-  #endif
-
+  
   // CP output
   gpio_init(EVSE_OUT);
   gpio_set_dir(EVSE_OUT, GPIO_OUT);
@@ -314,7 +317,7 @@ int main()
     busy_wait_ms(500);
 
     uint32_t ac_current = 100000 - pwm_value - 138;
-    ac_current = ac_current * 2250 / 1000;
+    ac_current = ac_current * 2250 / 1100; // Would be 1000 but increased to 1100 to account for efficiency
     uint32_t dc_current = ac_current * (3145728>>8) / (pack_voltage>>8);
     uint8_t ignition = gpio_get(IGNITION);
 
@@ -324,15 +327,18 @@ int main()
       pack_voltage = 0;
       max_cell = 0;
       max_temp = 0;
+      min_temp = 0;
     }
 
     if(pwm_value > 0) {
-      if((!pack_voltage || !max_cell || !max_temp) && charging) {
+      if((!pack_voltage || !max_cell || !max_temp || !min_temp) && charging) {
         error = 1; // Failed to receive CAN data while charging
       } else if(max_cell > 54394) {
         error = 2; // Over voltage on one cell
       } else if(max_temp && temperature(max_temp) > 45.f) {
         error = 3; // Over temperature
+      } else if(min_temp && temperature(min_temp) < 5.f) {
+        error = 4; // Under temperature
       }
       if(error) {
         if(error == 1)
@@ -341,14 +347,16 @@ int main()
           printf("BMS: Cell above 4.15V - charging not permitted\n");
         if(error == 3)
           printf("BMS: Temperature above 45C - charging not permitted\n");
+        if(error == 4)
+          printf("BMS: Temperature below 5C - charging not permitted\n");
         gpio_put(EVSE_OUT, 0);
         gpio_put(DC_DC_EN, ignition);
         // Bit 5 is 1 (stop)
         CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0 }, 8);
-      } else if(!pack_voltage || !max_cell || !max_temp) {
+      } else if(!pack_voltage || !max_cell || !max_temp || !min_temp) {
         printf("BMS: Waiting for CAN data\n");
         gpio_put(EVSE_OUT, 0);
-        gpio_put(DC_DC_EN, ignition);
+        gpio_put(DC_DC_EN, 1);
         // Bit 5 is 1 (stop)
         CAN_transmit(1, 0x1806E5F4, (uint8_t[]){ target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0 }, 8);
       } else {
@@ -356,7 +364,7 @@ int main()
         printf("  DC Voltage: %i.%iV\n", pack_voltage / 13107, pack_voltage % 13107);
         printf("  AC Current Limit: %i.%iA\n", ac_current / 1000, ac_current % 1000);
         printf("  DC Current Limit: %i.%iA\n", dc_current / 1000, dc_current % 1000);
-        printf("  Temperature: %.2fC\n", temperature(max_temp));
+        printf("  Temperature: %.2fC - %.2fC\n", temperature(min_temp), temperature(max_temp));
         gpio_put(EVSE_OUT, 1);
         gpio_put(DC_DC_EN, 1);
         // Bit 5 is 0 (charging)
@@ -376,10 +384,11 @@ int main()
       pack_voltage = 0;
       max_cell = 0;
       max_temp = 0;
-      #ifndef USB_MODE
+      min_temp = 0;
+      if(!USB_MODE)
         // Go into low power sleep unless USB mode or ignition
         if(!ignition) deep_sleep();
-      #endif
+      endif
     }
   }
 }
