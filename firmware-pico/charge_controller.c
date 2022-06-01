@@ -9,12 +9,14 @@
 #include "hardware/clocks.h"
 #include "hardware/sync.h"
 #include "hardware/dma.h"
+#include "hardware/structs/usb.h"
+#include "hardware/regs/usb.h"
+#include "device/usbd.h"
 #include "charge_controller.pio.h"
 #include "hardware/regs/io_bank0.h"
 #include "can.h"
 #include <math.h>
 
-//#define USB_MODE
 // Set the final charging voltage in units of 100mV
 // For example 41 (4.1V) * 16 cells * 10 modules
 uint16_t target_voltage = 41 * 16 * 10;
@@ -207,19 +209,18 @@ void reconfigure_clocks() {
   clock_configure(clk_ref, CLOCKS_CLK_REF_CTRL_SRC_VALUE_XOSC_CLKSRC, 0, 12000000, 12000000);
   clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12000000, 46875);
   // Shut down unused clocks, PLLs and oscillators
-  clock_stop(clk_usb);
   clock_stop(clk_adc);
-  pll_deinit(pll_usb);
   rosc_disable();
   // Disable more clocks when sleeping
-  clocks_hw->sleep_en0 = 0;
-  clocks_hw->sleep_en1 = CLOCKS_WAKE_EN1_CLK_SYS_TIMER_BITS;
+  clocks_hw->sleep_en0 = CLOCKS_SLEEP_EN0_CLK_SYS_PLL_USB_BITS;
+  clocks_hw->sleep_en1 = CLOCKS_SLEEP_EN1_CLK_SYS_TIMER_BITS | CLOCKS_SLEEP_EN1_CLK_SYS_XOSC_BITS | CLOCKS_SLEEP_EN1_CLK_USB_USBCTRL_BITS | CLOCKS_SLEEP_EN1_CLK_SYS_USBCTRL_BITS;
 }
 
 void deep_sleep() {
   // Wait 100ms for CAN to finish transmitting
   busy_wait_ms(100);
   // Deep sleep until woken by hardware
+  tud_disconnect(); // Disconnect USB
   CAN_reg_write(REG_CANCTRL, MODE_SLEEP);
   gpio_put(CAN_SLEEP, 1); // Sleep the CAN transceiver
   uint32_t s = save_and_disable_interrupts();
@@ -237,6 +238,12 @@ void deep_sleep() {
   SPI_configure();
   gpio_put(CAN_SLEEP, 0); // Wake the CAN transceiver
   CAN_reg_write(REG_CANCTRL, MODE_NORMAL);
+  tud_connect();
+  stdio_usb_init(); // Restore USB
+}
+
+int usb_suspended() {
+  return(usb_hw->sie_status & USB_SIE_STATUS_SUSPENDED_BITS);
 }
 
 float temperature(uint16_t adc) {
@@ -249,10 +256,8 @@ int main()
 {
   // Set system clock to 80MHz
   set_sys_clock_khz(80000, true);
-  if(USB_MODE)
-      stdio_init_all();
-  else
-    reconfigure_clocks();
+  stdio_init_all();
+  reconfigure_clocks();
   
   // CP output
   gpio_init(EVSE_OUT);
@@ -314,7 +319,7 @@ int main()
   // Main loop.
   while (1) {
     // Sleep for a minimum of 500ms per loop
-    busy_wait_ms(500);
+    sleep_ms(500);
 
     uint32_t ac_current = 100000 - pwm_value - 138;
     ac_current = ac_current * 2250 / 1100; // Would be 1000 but increased to 1100 to account for efficiency
@@ -385,10 +390,9 @@ int main()
       max_cell = 0;
       max_temp = 0;
       min_temp = 0;
-      if(!USB_MODE)
-        // Go into low power sleep unless USB mode or ignition
-        if(!ignition) deep_sleep();
-      endif
+      // Go into low power sleep unless USB mode or ignition
+      if(!ignition && usb_suspended())
+        deep_sleep();
     }
   }
 }
