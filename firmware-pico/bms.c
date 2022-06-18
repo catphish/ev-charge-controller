@@ -27,6 +27,10 @@
 #define OUT2 4
 #define OUT3 6
 #define OUT4 9
+#define IN1 14
+#define IN2 13
+#define IN3 12
+#define IN4 10
 
 // Buffers for received data
 uint8_t can_data_buffer[16];
@@ -153,12 +157,15 @@ void reconfigure_clocks() {
   // clocks_hw->sleep_en0 = 0;
   // clocks_hw->sleep_en1 = CLOCKS_WAKE_EN1_CLK_SYS_TIMER_BITS;
 }
+
+int ignition_state = 0;
+
 int main()
 {
   // Set system clock to 80MHz, this seems like a reasonable value for the 4MHz data
   set_sys_clock_khz(80000, true);
   reconfigure_clocks();
-
+  //stdio_init_all();
   // Output 8MHz square wave on CAN_CLK pin
   clock_gpio_init(CAN_CLK, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 10);
 
@@ -175,6 +182,10 @@ int main()
   pwm_set_wrap(slice_num, 10486); // 4.0V - 3.2V
   pwm_set_enabled(slice_num, true);
 
+  // OUT1 - Charger
+  // OUT2 - Main Contactor
+  // OUT3 - Fuel gauge PWM
+  // OUT4 - Temperature warning
   gpio_init(OUT1);
   gpio_set_dir(OUT1, GPIO_OUT);
  // gpio_init(OUT2);
@@ -184,13 +195,28 @@ int main()
   gpio_init(OUT4);
   gpio_set_dir(OUT4, GPIO_OUT);
 
-  gpio_put(OUT1, 1);
-  sleep_ms(2000);
-  gpio_put(OUT3, 1);
+  gpio_init(IN3);
+  gpio_set_dir(IN3, GPIO_IN);
 
   // Main loop.
   while (1) {
+    //printf("%i\n", gpio_get(IN3));
+    if(ignition_state) {
+      // Ingition is on, wait for it to be turned off
+      if(!gpio_get(IN3)) {
+        gpio_put(OUT3, 0);
+        ignition_state = 0;
+      }
+    } else {
+      // Ignition is off, wait for it to be turned on
+      if(gpio_get(IN3)) {
+        sleep_ms(2000);
+        gpio_put(OUT3, 1);
+        ignition_state = 1;
+      }
+    }
     if(CAN_receive(can_data_buffer)) {
+      uint16_t max_cell = ((uint16_t)can_data_buffer[0] << 8) | can_data_buffer[1];
       uint16_t min_cell = ((uint16_t)can_data_buffer[2] << 8) | can_data_buffer[3];
       uint16_t max_temp = ((uint16_t)can_data_buffer[4] << 8) | can_data_buffer[5];
       int32_t fuel_gauge = min_cell;
@@ -201,8 +227,15 @@ int main()
       gpio_put(OUT4,temperature(max_temp) > 40.f); // Temperature warning at 40C
       // If voltage is below 3.2V, open the contactors.
       if(fuel_gauge == 0) {
-        gpio_put(OUT1, 0);
         gpio_put(OUT3, 0);
+      }
+      // If max voltage is below 4.2V close charge contactor, else open it
+      if(max_cell < 55049 && temperature(max_temp) > 5.f && temperature(max_temp < 50.f)) {
+        gpio_put(OUT1, 1);
+      } else {
+        gpio_put(OUT1, 0);
+        gpio_put(OUT4, 1);
+        sleep_ms(20000);
       }
     }
   }
