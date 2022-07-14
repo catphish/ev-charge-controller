@@ -60,6 +60,7 @@ uint32_t pack_voltage;
 uint16_t max_temp;
 uint16_t min_temp;
 uint16_t max_cell;
+uint16_t min_cell;
 uint16_t data_timer;
 uint8_t error;
 uint8_t charging;
@@ -173,6 +174,7 @@ uint8_t CAN_receive() {
       // 0x4F1
       printf("Cell data received\n");
       max_cell = (received_data[0] << 8) | (received_data[1] << 0);
+      min_cell = (received_data[2] << 8) | (received_data[3] << 0);
       max_temp = (received_data[4] << 8) | (received_data[5] << 0);
       min_temp = (received_data[6] << 8) | (received_data[7] << 0);
     }
@@ -355,6 +357,8 @@ int main() {
   // Timeout
   pio_sm_put_blocking(pio0, 0, 100000);
 
+  uint8_t heat_allowed = 0;
+
   // Main loop.
   while (1) {
     // Sleep for a minimum of 100ms per loop
@@ -362,21 +366,26 @@ int main() {
     int32_t pwm_value_cache;
     pwm_value_cache = pwm_value;
     uint32_t ac_current = 100000 - pwm_value_cache - 138;
-    ac_current = ac_current * 2250 / 1100;  // Would be 1000 but increased to
-                                            // 1100 to account for inefficiency
-    uint32_t dc_current = ac_current * (3145728 >> 8) / (pack_voltage >> 8);
+    ac_current = ac_current * 2250 / 1000;
+    // Magic number below is 3145728 * efficiency (0.833) = 2621440
+    uint32_t dc_current = ac_current * (2621440 >> 8) / (pack_voltage >> 8);
     uint8_t ignition = gpio_get(IGNITION_IN);
     uint8_t heat = gpio_get(HEAT_IN);
     uint8_t button = gpio_get(START_IN);
-    printf("IGN: %i HEAT: %i button: %i\n", ignition, heat, button);
+    // printf("IGN: %i HEAT: %i button: %i\n", ignition, heat, button);
+
+    // Disable heater below 3.3V, re-enable at 3.4V
+    if (min_cell > 44564) heat_allowed = 1;
+    if (min_cell < 43253) heat_allowed = 0;
     // Enable heater if ignition and heat inputs are set
-    gpio_put(HEAT_OUT, ignition && heat);
+    gpio_put(HEAT_OUT, heat_allowed && ignition && heat);
 
     // Invalidate data if timer expires
     data_timer++;
-    if (data_timer > 1000) {
+    if (data_timer > 100) {
       pack_voltage = 0;
       max_cell = 0;
+      min_cell = 0;
       max_temp = 0;
       min_temp = 0;
     }
@@ -390,7 +399,7 @@ int main() {
                    1);  // No inputs set on drive unit
       if ((!pack_voltage || !max_cell || !max_temp || !min_temp) && charging) {
         error = 1;  // Failed to receive CAN data while charging
-      } else if (max_cell > 54394) {
+      } else if (max_cell > 52428) {
         error = 2;  // Over voltage on one cell
       } else if (max_temp && temperature(max_temp) > 45.f) {
         error = 3;  // Over temperature
@@ -400,7 +409,7 @@ int main() {
       if (error) {
         if (error == 1) printf("BMS: CAN data timeout\n");
         if (error == 2)
-          printf("BMS: Cell above 4.15V - charging not permitted\n");
+          printf("BMS: Cell above 4.0V - charging not permitted\n");
         if (error == 3)
           printf("BMS: Temperature above 45C - charging not permitted\n");
         if (error == 4)
@@ -469,6 +478,7 @@ int main() {
       // Invalidate data
       pack_voltage = 0;
       max_cell = 0;
+      min_cell = 0;
       max_temp = 0;
       min_temp = 0;
       // Go into low power sleep unless USB mode or ignition
