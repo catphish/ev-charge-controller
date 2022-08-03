@@ -139,7 +139,7 @@ void CAN_configure() {
   CAN_reg_write(REG_RXFnEID0(3), 0);
 
   // Enable receive interrupts
-  CAN_reg_write(REG_CANINTE, 3);
+  // CAN_reg_write(REG_CANINTE, 3);
 
   // Set normal operation mode
   CAN_reg_write(REG_CANCTRL, MODE_NORMAL);
@@ -170,6 +170,7 @@ uint8_t CAN_receive() {
       printf("Pack voltage received\n");
       pack_voltage = (received_data[0] << 24) | (received_data[1] << 16) |
                      (received_data[2] << 8) | (received_data[3] << 0);
+      pack_voltage /= 3;
     } else {
       // 0x4F1
       printf("Cell data received\n");
@@ -212,7 +213,7 @@ void CAN_transmit(uint8_t ext, uint32_t id, uint8_t* data, uint8_t length) {
 
 // Interrupt for CAN and dummy interrupt for hardware wakeup
 void gpio_callback() {
-  CAN_receive();
+  //  CAN_receive();
   gpio_acknowledge_irq(CAN_INT, GPIO_IRQ_LEVEL_LOW);
 }
 
@@ -324,11 +325,11 @@ int main() {
   CAN_reset();
   CAN_configure();
   // Configure CAN interrupt input pin
-  gpio_init(CAN_INT);
-  gpio_set_dir(CAN_INT, GPIO_IN);
-  gpio_disable_pulls(CAN_INT);
-  gpio_set_irq_enabled_with_callback(CAN_INT, GPIO_IRQ_LEVEL_LOW, true,
-                                     &gpio_callback);
+  // gpio_init(CAN_INT);
+  // gpio_set_dir(CAN_INT, GPIO_IN);
+  // gpio_disable_pulls(CAN_INT);
+  // gpio_set_irq_enabled_with_callback(CAN_INT, GPIO_IRQ_LEVEL_LOW, true,
+  //                                    &gpio_callback);
 
   uint32_t dma_channel_1 = dma_claim_unused_channel(true);
   uint32_t dma_channel_2 = dma_claim_unused_channel(true);
@@ -362,7 +363,10 @@ int main() {
   // Main loop.
   while (1) {
     // Sleep for a minimum of 100ms per loop
-    busy_wait_ms(100);
+    busy_wait_ms(50);
+    CAN_receive();
+    busy_wait_ms(50);
+    CAN_receive();
     int32_t pwm_value_cache;
     pwm_value_cache = pwm_value;
     uint32_t ac_current = 100000 - pwm_value_cache - 138;
@@ -399,8 +403,8 @@ int main() {
                    1);  // No inputs set on drive unit
       if ((!pack_voltage || !max_cell || !max_temp || !min_temp) && charging) {
         error = 1;  // Failed to receive CAN data while charging
-      } else if (max_cell > 52428) {
-        error = 2;  // Over voltage on one cell
+      } else if (max_cell > 53083) {  // Stop charging when one
+        error = 2;                    // cell reaches 4.05V
       } else if (max_temp && temperature(max_temp) > 45.f) {
         error = 3;  // Over temperature
       } else if (min_temp && temperature(min_temp) < 5.f) {
@@ -470,10 +474,6 @@ int main() {
       else
         CAN_transmit(0, 0x4E0, (uint8_t[]){0},
                      1);  // No inputs set on drive unit
-
-      // TODO: Set the BMS bit if the battery is low
-      // TODO: Set the cruise control bit if button pressed while vehicle
-      // moving
 
       // Invalidate data
       pack_voltage = 0;
