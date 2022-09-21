@@ -259,6 +259,14 @@ void deep_sleep() {
   clocks_hw->sleep_en1 = 0;
   xosc_dormant();
   reconfigure_clocks();
+
+  // Invalidate data
+  pack_voltage = 0;
+  max_cell = 0;
+  min_cell = 0;
+  max_temp = 0;
+  min_temp = 0;
+
   gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_LOW, false,
                                      &gpio_callback);
   gpio_set_irq_enabled_with_callback(IGNITION_IN, GPIO_IRQ_LEVEL_HIGH, false,
@@ -376,7 +384,7 @@ int main() {
     uint8_t ignition = gpio_get(IGNITION_IN);
     uint8_t heat = gpio_get(HEAT_IN);
     uint8_t button = gpio_get(START_IN);
-    // printf("IGN: %i HEAT: %i button: %i\n", ignition, heat, button);
+    printf("IGN: %i HEAT: %i button: %i\n", ignition, heat, button);
 
     // Disable heater below 3.3V, re-enable at 3.4V
     if (min_cell > 44564) heat_allowed = 1;
@@ -475,12 +483,6 @@ int main() {
         CAN_transmit(0, 0x4E0, (uint8_t[]){0},
                      1);  // No inputs set on drive unit
 
-      // Invalidate data
-      pack_voltage = 0;
-      max_cell = 0;
-      min_cell = 0;
-      max_temp = 0;
-      min_temp = 0;
       // Go into low power sleep unless USB mode or ignition
       if (!ignition && usb_suspended()) deep_sleep();
     }

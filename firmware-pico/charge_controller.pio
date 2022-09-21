@@ -8,13 +8,13 @@ start:
   mov y, osr     // Set Y to timeout
 timer_loop1:
   jmp y-- check1 // Jump to check if we haven't timed out yet
-  jmp start      // Timeout, X is zero, return data
+  jmp start      // Timeout, Y is zero, return data
 check1:
   jmp pin timer_loop1 // Pin remains high, don't time yet
-  mov y, osr     // Set Y to timeout
+  mov y, osr     // Set Y back to timeout
 timer_loop:
   jmp y-- check  // Jump to check if we haven't timed out yet
-  jmp start      // Timeout, X is zero, return data
+  jmp start      // Timeout, Y is zero, return data
 check:
   jmp pin start  // Pin has returned to one, return data
   jmp timer_loop // Pin is still low, keep waiting
