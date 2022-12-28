@@ -50,11 +50,11 @@ uint16_t target_voltage = 6640;  // 664V
 
 // State
 int32_t pwm_value;
-uint32_t pack_voltage;
-uint16_t max_temp;
-uint16_t min_temp;
-uint16_t max_cell;
-uint16_t data_timer;
+uint16_t max_temp[2];
+uint16_t min_temp[2];
+uint16_t max_cell[2];
+uint16_t min_cell[2];
+uint16_t data_timer[2];
 uint8_t error;
 uint8_t charging;
 
@@ -119,13 +119,13 @@ void CAN_configure() {
     CAN_reg_write(REG_RXMnEID0(n), 0);
   }
   // Set up filters RXF0 and RFX2 to match 2 addresses
-  uint32_t addr = 0x4F0;
+  uint32_t addr = 0x4F1;
   CAN_reg_write(REG_RXFnSIDH(0), addr >> 3);
   CAN_reg_write(REG_RXFnSIDL(0), addr << 5);
   CAN_reg_write(REG_RXFnEID8(0), 0);
   CAN_reg_write(REG_RXFnEID0(0), 0);
 
-  addr = 0x4F1;
+  addr = 0x4F5;
   CAN_reg_write(REG_RXFnSIDH(2), addr >> 3);
   CAN_reg_write(REG_RXFnSIDL(2), addr << 5);
   CAN_reg_write(REG_RXFnEID8(2), 0);
@@ -154,17 +154,22 @@ uint8_t CAN_receive() {
 
   uint8_t length;
   if (!rtr) {
-    data_timer = 0;
     uint8_t received_data[8];
     for (int i = 0; i < 8; i++) received_data[i] = CAN_reg_read(REG_RXBnD0(n) + i);
     if (!n) {
-      // 0x4F0
-      pack_voltage = (received_data[0] << 24) | (received_data[1] << 16) | (received_data[2] << 8) | (received_data[3] << 0);
+      // 0x4F1 (BMS1)
+      max_cell[0] = (received_data[0] << 8) | (received_data[1] << 0);
+      min_cell[0] = (received_data[2] << 8) | (received_data[3] << 0);
+      max_temp[0] = (received_data[4] << 8) | (received_data[5] << 0);
+      min_temp[0] = (received_data[6] << 8) | (received_data[7] << 0);
+      data_timer[0] = 0;
     } else {
-      // 0x4F1
-      max_cell = (received_data[0] << 8) | (received_data[1] << 0);
-      max_temp = (received_data[4] << 8) | (received_data[5] << 0);
-      min_temp = (received_data[6] << 8) | (received_data[7] << 0);
+      // 0x4F5 (BMS2)
+      max_cell[1] = (received_data[0] << 8) | (received_data[1] << 0);
+      min_cell[1] = (received_data[2] << 8) | (received_data[3] << 0);
+      max_temp[1] = (received_data[4] << 8) | (received_data[5] << 0);
+      min_temp[1] = (received_data[6] << 8) | (received_data[7] << 0);
+      data_timer[1] = 0;
     }
   }
 
@@ -311,28 +316,33 @@ int main() {
     // Sleep for a minimum of 500ms per loop
     sleep_ms(500);
 
-    uint32_t ac_current = 100000 - pwm_value - 138;
-    ac_current = ac_current * 2250 / 1100;  // Would be 1000 but increased to 1100 to account for efficiency
-    uint32_t dc_current = ac_current * (3145728 >> 8) / (pack_voltage >> 8);
-
     // Invalidate data if timer expires
-    data_timer++;
-    if (data_timer > 10) {
-      pack_voltage = 0;
-      max_cell = 0;
-      max_temp = 0;
-      min_temp = 0;
+    data_timer[0]++;
+    if (data_timer[0] > 10) {
+      max_cell[0] = 0;
+      min_cell[0] = 0;
+      max_temp[0] = 0;
+      min_temp[0] = 0;
+    }
+    data_timer[1]++;
+    if (data_timer[1] > 10) {
+      max_cell[1] = 0;
+      min_cell[1] = 0;
+      max_temp[1] = 0;
+      min_temp[1] = 0;
     }
 
     if (pwm_value > 0) {
-      if ((!pack_voltage || !max_cell || !max_temp || !min_temp) && charging) {
-        error = 1;  // Failed to receive CAN data while charging
-      } else if (max_cell > 53739) {
-        error = 2;  // Over voltage on one cell
-      } else if (max_temp && temperature(max_temp) > 45.f) {
-        error = 3;  // Over temperature
-      } else if (min_temp && temperature(min_temp) < 5.f) {
-        error = 4;  // Under temperature
+      for (int n = 0; n < 2; n++) {
+        if ((!max_cell[n] || !min_cell[n] || !max_temp[n] || !min_temp[n]) && charging) {
+          error = 1;  // Failed to receive CAN data while charging
+        } else if (max_cell[n] > 53739) {
+          error = 2;  // Over voltage on one cell
+        } else if (max_temp[n] && temperature(max_temp[n]) > 45.f) {
+          error = 3;  // Over temperature
+        } else if (min_temp[n] && temperature(min_temp[n]) < 5.f) {
+          error = 4;  // Under temperature
+        }
       }
       if (error) {
         if (error == 1) printf("BMS: CAN data timeout\n");
@@ -343,18 +353,25 @@ int main() {
         gpio_put(DC_DC_EN, 0);
         // Bit 5 is 1 (stop)
         CAN_transmit(1, 0x1806E5F4, (uint8_t[]){target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0}, 8);
-      } else if (!pack_voltage || !max_cell || !max_temp || !min_temp) {
+      } else if ((!max_cell[0] || !min_cell[0] || !max_temp[0] || !min_temp[0]) || (!max_cell[1] || !min_cell[1] || !max_temp[1] || !min_temp[1])) {
         printf("BMS: Waiting for CAN data\n");
         gpio_put(EVSE_OUT, 0);
         gpio_put(DC_DC_EN, 1);
         // Bit 5 is 1 (stop)
         CAN_transmit(1, 0x1806E5F4, (uint8_t[]){target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0}, 8);
       } else {
+        uint32_t ac_current = 100000 - pwm_value - 138;
+        ac_current = ac_current * 2250 / 1100;  // Would be 1000 but increased to 1100 to account for efficiency
+        uint32_t pack_voltage = max_cell[0];
+        pack_voltage *= 160;
+        uint32_t dc_current = ac_current * (3145728 >> 8) / (pack_voltage >> 8);
+
         printf("Charging\n");
         printf("  DC Voltage: %i.%iV\n", pack_voltage / 13107, pack_voltage % 13107);
         printf("  AC Current Limit: %i.%iA\n", ac_current / 1000, ac_current % 1000);
         printf("  DC Current Limit: %i.%iA\n", dc_current / 1000, dc_current % 1000);
-        printf("  Temperature: %.2fC - %.2fC\n", temperature(min_temp), temperature(max_temp));
+        printf("  Temperature BMS 1: %.2fC - %.2fC\n", temperature(min_temp[0]), temperature(max_temp[0]));
+        printf("  Temperature BMS 2: %.2fC - %.2fC\n", temperature(min_temp[1]), temperature(max_temp[1]));
         gpio_put(EVSE_OUT, 1);
         gpio_put(DC_DC_EN, 1);
         // Bit 5 is 0 (charging)
@@ -371,10 +388,14 @@ int main() {
       gpio_put(EVSE_OUT, 0);
       gpio_put(DC_DC_EN, 0);
       // Invalidate data
-      pack_voltage = 0;
-      max_cell = 0;
-      max_temp = 0;
-      min_temp = 0;
+      max_cell[0] = 0;
+      min_cell[0] = 0;
+      max_temp[0] = 0;
+      min_temp[0] = 0;
+      max_cell[1] = 0;
+      min_cell[1] = 0;
+      max_temp[1] = 0;
+      min_temp[1] = 0;
       // Go into low power sleep unless USB active
       if (usb_suspended()) deep_sleep();
     }
