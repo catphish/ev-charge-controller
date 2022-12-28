@@ -163,13 +163,11 @@ uint8_t CAN_receive() {
   if (!rtr) {
     data_timer = 0;
     uint8_t received_data[8];
-    for (int i = 0; i < 8; i++)
-      received_data[i] = CAN_reg_read(REG_RXBnD0(n) + i);
+    for (int i = 0; i < 8; i++) received_data[i] = CAN_reg_read(REG_RXBnD0(n) + i);
     if (!n) {
       // 0x4F0
       printf("Pack voltage received\n");
-      pack_voltage = (received_data[0] << 24) | (received_data[1] << 16) |
-                     (received_data[2] << 8) | (received_data[3] << 0);
+      pack_voltage = (received_data[0] << 24) | (received_data[1] << 16) | (received_data[2] << 8) | (received_data[3] << 0);
       pack_voltage /= 3;
     } else {
       // 0x4F1
@@ -189,8 +187,7 @@ void CAN_transmit(uint8_t ext, uint32_t id, uint8_t* data, uint8_t length) {
   if (ext) {
     CAN_reg_write(REG_TXBnEID0(0), id);
     CAN_reg_write(REG_TXBnEID8(0), id >> 8);
-    CAN_reg_write(REG_TXBnSIDL(0),
-                  ((id >> 16) & 3) | FLAG_EXIDE | (((id >> 18) & 7) << 5));
+    CAN_reg_write(REG_TXBnSIDL(0), ((id >> 16) & 3) | FLAG_EXIDE | (((id >> 18) & 7) << 5));
     CAN_reg_write(REG_TXBnSIDH(0), id >> 21);
   } else {
     CAN_reg_write(REG_TXBnSIDH(0), id >> 3);  // Set CAN ID
@@ -205,9 +202,9 @@ void CAN_transmit(uint8_t ext, uint32_t id, uint8_t* data, uint8_t length) {
     CAN_reg_write(REG_TXBnD0(0) + i, data[i]);
   }
 
-  CAN_reg_write(REG_TXBnCTRL(0), 0x08);  // Start sending
-  busy_wait_us(1000);                    // Allow up to 1ms to transmit
-  CAN_reg_write(REG_TXBnCTRL(0), 0);     // Stop sending
+  CAN_reg_write(REG_TXBnCTRL(0), 0x08);              // Start sending
+  busy_wait_us(1000);                                // Allow up to 1ms to transmit
+  CAN_reg_write(REG_TXBnCTRL(0), 0);                 // Stop sending
   CAN_reg_modify(REG_CANINTF, FLAG_TXnIF(0), 0x00);  // Clear interrupt flag
 }
 
@@ -219,21 +216,15 @@ void gpio_callback() {
 
 void reconfigure_clocks() {
   // Clock the peripherals, ref clk, and rtc from the 12MHz crystal oscillator
-  clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_XOSC_CLKSRC,
-                  12000000, 12000000);
-  clock_configure(clk_ref, CLOCKS_CLK_REF_CTRL_SRC_VALUE_XOSC_CLKSRC, 0,
-                  12000000, 12000000);
-  clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC,
-                  12000000, 46875);
+  clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12000000, 12000000);
+  clock_configure(clk_ref, CLOCKS_CLK_REF_CTRL_SRC_VALUE_XOSC_CLKSRC, 0, 12000000, 12000000);
+  clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12000000, 46875);
   // Shut down unused clocks, PLLs and oscillators
   clock_stop(clk_adc);
   rosc_disable();
   // Disable more clocks when sleeping
   clocks_hw->sleep_en0 = CLOCKS_SLEEP_EN0_CLK_SYS_PLL_USB_BITS;
-  clocks_hw->sleep_en1 = CLOCKS_SLEEP_EN1_CLK_SYS_TIMER_BITS |
-                         CLOCKS_SLEEP_EN1_CLK_SYS_XOSC_BITS |
-                         CLOCKS_SLEEP_EN1_CLK_USB_USBCTRL_BITS |
-                         CLOCKS_SLEEP_EN1_CLK_SYS_USBCTRL_BITS;
+  clocks_hw->sleep_en1 = CLOCKS_SLEEP_EN1_CLK_SYS_TIMER_BITS | CLOCKS_SLEEP_EN1_CLK_SYS_XOSC_BITS | CLOCKS_SLEEP_EN1_CLK_USB_USBCTRL_BITS | CLOCKS_SLEEP_EN1_CLK_SYS_USBCTRL_BITS;
 }
 
 void deep_sleep() {
@@ -249,10 +240,8 @@ void deep_sleep() {
   CAN_reg_write(REG_CANCTRL, MODE_SLEEP);
   gpio_put(CAN_SLEEP, 1);  // Sleep the CAN transceiver
   uint32_t s = save_and_disable_interrupts();
-  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_LOW, true,
-                                     &gpio_callback);
-  gpio_set_irq_enabled_with_callback(IGNITION_IN, GPIO_IRQ_LEVEL_HIGH, true,
-                                     &gpio_callback);
+  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_LOW, true, &gpio_callback);
+  gpio_set_irq_enabled_with_callback(IGNITION_IN, GPIO_IRQ_LEVEL_HIGH, true, &gpio_callback);
   gpio_set_dormant_irq_enabled(EVSE_CP, GPIO_IRQ_LEVEL_LOW, true);
   gpio_set_dormant_irq_enabled(IGNITION_IN, GPIO_IRQ_LEVEL_HIGH, true);
   clocks_hw->sleep_en0 = 0;
@@ -267,10 +256,8 @@ void deep_sleep() {
   max_temp = 0;
   min_temp = 0;
 
-  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_LOW, false,
-                                     &gpio_callback);
-  gpio_set_irq_enabled_with_callback(IGNITION_IN, GPIO_IRQ_LEVEL_HIGH, false,
-                                     &gpio_callback);
+  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_LOW, false, &gpio_callback);
+  gpio_set_irq_enabled_with_callback(IGNITION_IN, GPIO_IRQ_LEVEL_HIGH, false, &gpio_callback);
   restore_interrupts(s);
   SPI_configure();
   gpio_put(CAN_SLEEP, 0);  // Wake the CAN transceiver
@@ -279,13 +266,10 @@ void deep_sleep() {
   stdio_usb_init();  // Restore USB
 }
 
-int usb_suspended() {
-  return (usb_hw->sie_status & USB_SIE_STATUS_SUSPENDED_BITS);
-}
+int usb_suspended() { return (usb_hw->sie_status & USB_SIE_STATUS_SUSPENDED_BITS); }
 
 float temperature(uint16_t adc) {
-  float r = 0.0000000347363427499292f * adc * adc - 0.001025770762903f * adc +
-            2.68235340614337f;
+  float r = 0.0000000347363427499292f * adc * adc - 0.001025770762903f * adc + 2.68235340614337f;
   float t = log(r) * -30.5280964239816f + 95.6841501312447f;
   return t;
 }
@@ -324,8 +308,7 @@ int main() {
   gpio_put(CAN_SLEEP, 0);  // Logic low to wake transceiver
 
   // Output 8MHz square wave on CAN_CLK pin
-  clock_gpio_init(CAN_CLK, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
-                  10);
+  clock_gpio_init(CAN_CLK, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 10);
 
   // Configure SPI to communicate with CAN
   SPI_configure();
@@ -341,10 +324,8 @@ int main() {
 
   uint32_t dma_channel_1 = dma_claim_unused_channel(true);
   uint32_t dma_channel_2 = dma_claim_unused_channel(true);
-  dma_channel_config dma_config_1 =
-      dma_channel_get_default_config(dma_channel_1);
-  dma_channel_config dma_config_2 =
-      dma_channel_get_default_config(dma_channel_2);
+  dma_channel_config dma_config_1 = dma_channel_get_default_config(dma_channel_1);
+  dma_channel_config dma_config_2 = dma_channel_get_default_config(dma_channel_2);
   channel_config_set_read_increment(&dma_config_1, false);
   channel_config_set_read_increment(&dma_config_2, false);
   channel_config_set_write_increment(&dma_config_1, false);
@@ -355,10 +336,8 @@ int main() {
   channel_config_set_chain_to(&dma_config_2, dma_channel_1);
   channel_config_set_dreq(&dma_config_1, pio_get_dreq(pio0, 0, false));
   channel_config_set_dreq(&dma_config_2, pio_get_dreq(pio0, 0, false));
-  dma_channel_configure(dma_channel_1, &dma_config_1, &pwm_value, &pio0->rxf[0],
-                        1, false);
-  dma_channel_configure(dma_channel_2, &dma_config_2, &pwm_value, &pio0->rxf[0],
-                        1, true);
+  dma_channel_configure(dma_channel_1, &dma_config_1, &pwm_value, &pio0->rxf[0], 1, false);
+  dma_channel_configure(dma_channel_2, &dma_config_2, &pwm_value, &pio0->rxf[0], 1, true);
 
   uint32_t offset = pio_add_program(pio0, &pwm_measurement_program);
   pwm_measurement_program_init(pio0, 0, offset, EVSE_CP);
@@ -410,7 +389,7 @@ int main() {
       CAN_transmit(0, 0x4E0, (uint8_t[]){0},
                    1);  // No inputs set on drive unit
       if ((!pack_voltage || !max_cell || !max_temp || !min_temp) && charging) {
-        error = 1;  // Failed to receive CAN data while charging
+        error = 1;                    // Failed to receive CAN data while charging
       } else if (max_cell > 53083) {  // Stop charging when one
         error = 2;                    // cell reaches 4.05V
       } else if (max_temp && temperature(max_temp) > 45.f) {
@@ -420,46 +399,29 @@ int main() {
       }
       if (error) {
         if (error == 1) printf("BMS: CAN data timeout\n");
-        if (error == 2)
-          printf("BMS: Cell above 4.0V - charging not permitted\n");
-        if (error == 3)
-          printf("BMS: Temperature above 45C - charging not permitted\n");
-        if (error == 4)
-          printf("BMS: Temperature below 5C - charging not permitted\n");
+        if (error == 2) printf("BMS: Cell above 4.0V - charging not permitted\n");
+        if (error == 3) printf("BMS: Temperature above 45C - charging not permitted\n");
+        if (error == 4) printf("BMS: Temperature below 5C - charging not permitted\n");
         gpio_put(EVSE_OUT, 0);
         gpio_put(DC_DC_OUT, ignition);
         // Bit 5 is 1 (stop)
-        CAN_transmit(
-            1, 0x1806E5F4,
-            (uint8_t[]){target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0},
-            8);
+        CAN_transmit(1, 0x1806E5F4, (uint8_t[]){target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0}, 8);
       } else if (!pack_voltage || !max_cell || !max_temp || !min_temp) {
         printf("BMS: Waiting for CAN data\n");
         gpio_put(EVSE_OUT, 0);
         gpio_put(DC_DC_OUT, 1);
         // Bit 5 is 1 (stop)
-        CAN_transmit(
-            1, 0x1806E5F4,
-            (uint8_t[]){target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0},
-            8);
+        CAN_transmit(1, 0x1806E5F4, (uint8_t[]){target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0}, 8);
       } else {
         printf("Charging\n");
-        printf("  DC Voltage: %i.%iV\n", pack_voltage / 13107,
-               pack_voltage % 13107);
-        printf("  AC Current Limit: %i.%iA\n", ac_current / 1000,
-               ac_current % 1000);
-        printf("  DC Current Limit: %i.%iA\n", dc_current / 1000,
-               dc_current % 1000);
-        printf("  Temperature: %.2fC - %.2fC\n", temperature(min_temp),
-               temperature(max_temp));
+        printf("  DC Voltage: %i.%iV\n", pack_voltage / 13107, pack_voltage % 13107);
+        printf("  AC Current Limit: %i.%iA\n", ac_current / 1000, ac_current % 1000);
+        printf("  DC Current Limit: %i.%iA\n", dc_current / 1000, dc_current % 1000);
+        printf("  Temperature: %.2fC - %.2fC\n", temperature(min_temp), temperature(max_temp));
         gpio_put(EVSE_OUT, 1);
         gpio_put(DC_DC_OUT, 1);
         // Bit 5 is 0 (charging)
-        CAN_transmit(
-            1, 0x1806E5F4,
-            (uint8_t[]){target_voltage >> 8, target_voltage,
-                        (dc_current / 100) >> 8, dc_current / 100, 0, 0, 0, 0},
-            8);
+        CAN_transmit(1, 0x1806E5F4, (uint8_t[]){target_voltage >> 8, target_voltage, (dc_current / 100) >> 8, dc_current / 100, 0, 0, 0, 0}, 8);
         charging = 1;
       }
     } else {
@@ -467,10 +429,7 @@ int main() {
       error = 0;
       charging = 0;
       // Bit 5 is 1 (stop)
-      CAN_transmit(
-          1, 0x1806E5F4,
-          (uint8_t[]){target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0},
-          8);
+      CAN_transmit(1, 0x1806E5F4, (uint8_t[]){target_voltage >> 8, target_voltage, 0, 0, 1, 0, 0, 0}, 8);
       printf("EVSE: NO SIGNAL\n");
       gpio_put(EVSE_OUT, 0);
       gpio_put(DC_DC_OUT, ignition);
