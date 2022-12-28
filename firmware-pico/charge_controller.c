@@ -21,6 +21,7 @@
 // Set the final charging voltage in units of 100mV
 // For example 41 (4.1V) * 16 cells * 10 modules
 uint16_t target_voltage = 6640;  // 664V
+#define CELL_COUNT 160
 
 // Define pins for SPI (to CAN)
 #define SPI_PORT spi0
@@ -363,7 +364,7 @@ int main() {
         uint32_t ac_current = 100000 - pwm_value - 138;
         ac_current = ac_current * 2250 / 1100;  // Would be 1000 but increased to 1100 to account for efficiency
         uint32_t pack_voltage = max_cell[0];
-        pack_voltage *= 160;
+        pack_voltage *= CELL_COUNT;
         uint32_t dc_current = ac_current * (3145728 >> 8) / (pack_voltage >> 8);
 
         printf("Charging\n");
