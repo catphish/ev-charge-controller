@@ -130,7 +130,7 @@ void CAN_configure() {
   CAN_reg_write(REG_RXFnSIDH(2), addr >> 3);
   CAN_reg_write(REG_RXFnSIDL(2), addr << 5);
   CAN_reg_write(REG_RXFnEID8(2), 0);
-  CAN_reg_write(REG_RXFnEID0(3), 0);
+  CAN_reg_write(REG_RXFnEID0(2), 0);
 
   // Enable receive interrupts
   CAN_reg_write(REG_CANINTE, 3);
@@ -164,6 +164,7 @@ uint8_t CAN_receive() {
       max_temp[0] = (received_data[4] << 8) | (received_data[5] << 0);
       min_temp[0] = (received_data[6] << 8) | (received_data[7] << 0);
       data_timer[0] = 0;
+      printf("RX BMS1\n");
     } else {
       // 0x4F5 (BMS2)
       max_cell[1] = (received_data[0] << 8) | (received_data[1] << 0);
@@ -171,6 +172,7 @@ uint8_t CAN_receive() {
       max_temp[1] = (received_data[4] << 8) | (received_data[5] << 0);
       min_temp[1] = (received_data[6] << 8) | (received_data[7] << 0);
       data_timer[1] = 0;
+      printf("RX BMS2\n");
     }
   }
 
