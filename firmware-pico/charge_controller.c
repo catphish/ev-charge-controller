@@ -394,14 +394,14 @@ int main() {
         error = 2;                    // cell reaches 4.05V
       } else if (max_temp && temperature(max_temp) > 45.f) {
         error = 3;  // Over temperature
-      } else if (min_temp && temperature(min_temp) < 5.f) {
+      } else if (min_temp && temperature(min_temp) < 2.f) {
         error = 4;  // Under temperature
       }
       if (error) {
         if (error == 1) printf("BMS: CAN data timeout\n");
         if (error == 2) printf("BMS: Cell above 4.0V - charging not permitted\n");
         if (error == 3) printf("BMS: Temperature above 45C - charging not permitted\n");
-        if (error == 4) printf("BMS: Temperature below 5C - charging not permitted\n");
+        if (error == 4) printf("BMS: Temperature below 2C - charging not permitted\n");
         gpio_put(EVSE_OUT, 0);
         gpio_put(DC_DC_OUT, ignition);
         // Bit 5 is 1 (stop)
