@@ -330,14 +330,14 @@ int main() {
 
     // Invalidate data if timer expires
     data_timer[0]++;
-    if (data_timer[0] > 10) {
+    if (data_timer[0] > 100) {
       max_cell[0] = 0;
       min_cell[0] = 0;
       max_temp[0] = 0;
       min_temp[0] = 0;
     }
     data_timer[1]++;
-    if (data_timer[1] > 10) {
+    if (data_timer[1] > 100) {
       max_cell[1] = 0;
       min_cell[1] = 0;
       max_temp[1] = 0;
