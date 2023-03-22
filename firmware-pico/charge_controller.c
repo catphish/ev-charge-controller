@@ -133,7 +133,7 @@ void CAN_configure() {
   CAN_reg_write(REG_RXFnEID0(2), 0);
 
   // Enable receive interrupts
-  CAN_reg_write(REG_CANINTE, 3);
+  // CAN_reg_write(REG_CANINTE, 3);
 
   // Set normal operation mode
   CAN_reg_write(REG_CANCTRL, MODE_NORMAL);
@@ -207,7 +207,7 @@ void CAN_transmit(uint8_t ext, uint32_t id, uint8_t* data, uint8_t length) {
 
 // Interrupt for CAN and dummy interrupt for hardware wakeup
 void gpio_callback() {
-  CAN_receive();
+  // CAN_receive();
   gpio_acknowledge_irq(CAN_INT, GPIO_IRQ_LEVEL_LOW);
 }
 
@@ -286,10 +286,10 @@ int main() {
   CAN_reset();
   CAN_configure();
   // Configure CAN interrupt input pin
-  gpio_init(CAN_INT);
-  gpio_set_dir(CAN_INT, GPIO_IN);
-  gpio_disable_pulls(CAN_INT);
-  gpio_set_irq_enabled_with_callback(CAN_INT, GPIO_IRQ_LEVEL_LOW, true, &gpio_callback);
+  // gpio_init(CAN_INT);
+  // gpio_set_dir(CAN_INT, GPIO_IN);
+  // gpio_disable_pulls(CAN_INT);
+  // gpio_set_irq_enabled_with_callback(CAN_INT, GPIO_IRQ_LEVEL_LOW, true, &gpio_callback);
 
   uint32_t dma_channel_1 = dma_claim_unused_channel(true);
   uint32_t dma_channel_2 = dma_claim_unused_channel(true);
@@ -316,8 +316,11 @@ int main() {
 
   // Main loop.
   while (1) {
-    // Sleep for a minimum of 500ms per loop
-    sleep_ms(500);
+    // Sleep for a minimum of 100ms per loop
+    busy_wait_ms(50);
+    CAN_receive();
+    busy_wait_ms(50);
+    CAN_receive();
 
     // Invalidate data if timer expires
     data_timer[0]++;
