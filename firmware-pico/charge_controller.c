@@ -210,7 +210,7 @@ void CAN_transmit(uint8_t ext, uint32_t id, uint8_t* data, uint8_t length) {
 
 // Interrupt for CAN and dummy interrupt for hardware wakeup
 void gpio_callback() {
-  //  CAN_receive();
+  // CAN_receive();
   gpio_acknowledge_irq(CAN_INT, GPIO_IRQ_LEVEL_LOW);
 }
 
