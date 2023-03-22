@@ -136,7 +136,7 @@ void CAN_configure() {
   CAN_reg_write(REG_RXFnSIDH(2), addr >> 3);
   CAN_reg_write(REG_RXFnSIDL(2), addr << 5);
   CAN_reg_write(REG_RXFnEID8(2), 0);
-  CAN_reg_write(REG_RXFnEID0(3), 0);
+  CAN_reg_write(REG_RXFnEID0(2), 0);
 
   // Enable receive interrupts
   // CAN_reg_write(REG_CANINTE, 3);
