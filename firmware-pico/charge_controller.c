@@ -47,6 +47,7 @@ uint16_t target_voltage = 6640;  // 664V
 #define OUT2 6
 #define OUT3 4
 #define OUT4 2
+
 #define DC_DC_EN OUT4
 
 // State
@@ -212,8 +213,7 @@ void gpio_callback() {
 }
 
 void reconfigure_clocks() {
-  // Clock the peripherals, ref clk, and rtc from the 12MHz
-  // crystal oscillator
+  // Clock the peripherals, ref clk, and rtc from the 12MHz crystal oscillator
   clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12000000, 12000000);
   clock_configure(clk_ref, CLOCKS_CLK_REF_CTRL_SRC_VALUE_XOSC_CLKSRC, 0, 12000000, 12000000);
   clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12000000, 46875);
