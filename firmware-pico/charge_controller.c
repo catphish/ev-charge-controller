@@ -266,6 +266,8 @@ int main() {
   stdio_init_all();
   reconfigure_clocks();
 
+  busy_wait_ms(1000);
+
   // CP output
   gpio_init(EVSE_OUT);
   gpio_set_dir(EVSE_OUT, GPIO_OUT);
@@ -350,7 +352,7 @@ int main() {
           error = 2;  // Over voltage on one cell
         } else if (max_temp[n] && temperature(max_temp[n]) > 45.f) {
           error = 3;  // Over temperature
-        } else if (min_temp[n] && temperature(min_temp[n]) < 5.f) {
+        } else if (min_temp[n] && temperature(min_temp[n]) < 2.f) {
           error = 4;  // Under temperature
         }
       }
@@ -358,7 +360,7 @@ int main() {
         if (error == 1) printf("BMS: CAN data timeout\n");
         if (error == 2) printf("BMS: Cell above 4.1V - charging not permitted\n");
         if (error == 3) printf("BMS: Temperature above 45C - charging not permitted\n");
-        if (error == 4) printf("BMS: Temperature below 5C - charging not permitted\n");
+        if (error == 4) printf("BMS: Temperature below 2C - charging not permitted\n");
         gpio_put(EVSE_OUT, 0);
         gpio_put(DC_DC_EN, 0);
         // Bit 5 is 1 (stop)
