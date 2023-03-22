@@ -42,7 +42,7 @@ uint16_t target_voltage = 6640;  // 664V
 #define IN1 14
 #define IN2 13
 #define IN3 12
-#define IN4 11
+#define IN4 10
 #define OUT1 9
 #define OUT2 6
 #define OUT3 4
@@ -226,6 +226,9 @@ void reconfigure_clocks() {
 }
 
 void deep_sleep() {
+  // Make 100% sure everything is shut down
+  gpio_put(EVSE_OUT, 0);
+  gpio_put(DC_DC_EN, 0);
   // Wait 100ms for CAN to finish transmitting
   busy_wait_ms(100);
   // Deep sleep until woken by hardware
