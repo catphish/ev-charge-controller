@@ -227,8 +227,9 @@ void reconfigure_clocks() {
 
 void deep_sleep() {
   // Make 100% sure everything is shut down
-  gpio_put(EVSE_OUT, 0);
   gpio_put(DC_DC_EN, 0);
+  gpio_put(EVSE_OUT, 0);
+
   // Wait 100ms for CAN to finish transmitting
   busy_wait_ms(100);
   // Deep sleep until woken by hardware
