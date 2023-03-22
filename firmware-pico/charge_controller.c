@@ -319,8 +319,7 @@ int main() {
   // gpio_init(CAN_INT);
   // gpio_set_dir(CAN_INT, GPIO_IN);
   // gpio_disable_pulls(CAN_INT);
-  // gpio_set_irq_enabled_with_callback(CAN_INT, GPIO_IRQ_LEVEL_LOW, true,
-  //                                    &gpio_callback);
+  // gpio_set_irq_enabled_with_callback(CAN_INT, GPIO_IRQ_LEVEL_LOW, true, &gpio_callback);
 
   uint32_t dma_channel_1 = dma_claim_unused_channel(true);
   uint32_t dma_channel_2 = dma_claim_unused_channel(true);
@@ -386,8 +385,7 @@ int main() {
     } else if (pwm_value_cache > 99860) {
       printf("Ambiguous PWM reading\n");
     } else if (pwm_value_cache > 0) {
-      CAN_transmit(0, 0x4E0, (uint8_t[]){0},
-                   1);  // No inputs set on drive unit
+      CAN_transmit(0, 0x4E0, (uint8_t[]){0}, 1);  // No inputs set on drive unit
       if ((!pack_voltage || !max_cell || !max_temp || !min_temp) && charging) {
         error = 1;                    // Failed to receive CAN data while charging
       } else if (max_cell > 53083) {  // Stop charging when one
@@ -436,11 +434,9 @@ int main() {
 
       // Map start button to drive unit via CAN
       if (button)
-        CAN_transmit(0, 0x4E0, (uint8_t[]){2},
-                     1);  // Start bit set on drive unit
+        CAN_transmit(0, 0x4E0, (uint8_t[]){2}, 1);  // Start bit set on drive unit
       else
-        CAN_transmit(0, 0x4E0, (uint8_t[]){0},
-                     1);  // No inputs set on drive unit
+        CAN_transmit(0, 0x4E0, (uint8_t[]){0}, 1);  // No inputs set on drive unit
 
       // Go into low power sleep unless USB mode or ignition
       if (!ignition && usb_suspended()) deep_sleep();
