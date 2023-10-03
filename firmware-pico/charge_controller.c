@@ -140,6 +140,12 @@ void CAN_configure() {
   CAN_reg_write(REG_CANCTRL, MODE_NORMAL);
 }
 
+float temperature(uint16_t adc) {
+  float r = 0.0000000347363427499292f * adc * adc - 0.001025770762903f * adc + 2.68235340614337f;
+  float t = log(r) * -30.5280964239816f + 95.6841501312447f;
+  return t;
+}
+
 uint8_t CAN_receive() {
   uint8_t intf = CAN_reg_read(REG_CANINTF);
   uint8_t rtr;
@@ -165,7 +171,7 @@ uint8_t CAN_receive() {
       max_temp[0] = (received_data[4] << 8) | (received_data[5] << 0);
       min_temp[0] = (received_data[6] << 8) | (received_data[7] << 0);
       data_timer[0] = 0;
-      printf("RX BMS1\n");
+      printf("BMS1 data received\n");
     } else {
       // 0x4F5 (BMS2)
       max_cell[1] = (received_data[0] << 8) | (received_data[1] << 0);
@@ -173,7 +179,7 @@ uint8_t CAN_receive() {
       max_temp[1] = (received_data[4] << 8) | (received_data[5] << 0);
       min_temp[1] = (received_data[6] << 8) | (received_data[7] << 0);
       data_timer[1] = 0;
-      printf("RX BMS2\n");
+      printf("BMS2 data received\n");
     }
   }
 
@@ -225,40 +231,7 @@ void reconfigure_clocks() {
   clocks_hw->sleep_en1 = CLOCKS_SLEEP_EN1_CLK_SYS_TIMER_BITS | CLOCKS_SLEEP_EN1_CLK_SYS_XOSC_BITS | CLOCKS_SLEEP_EN1_CLK_USB_USBCTRL_BITS | CLOCKS_SLEEP_EN1_CLK_SYS_USBCTRL_BITS;
 }
 
-void deep_sleep() {
-  // Make 100% sure everything is shut down
-  gpio_put(DC_DC_EN, 0);
-  gpio_put(EVSE_OUT, 0);
-
-  // Wait 100ms for CAN to finish transmitting
-  busy_wait_ms(100);
-  // Deep sleep until woken by hardware
-  tud_disconnect();  // Disconnect USB
-  CAN_reg_write(REG_CANCTRL, MODE_SLEEP);
-  gpio_put(CAN_SLEEP, 1);  // Sleep the CAN transceiver
-  uint32_t s = save_and_disable_interrupts();
-  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_LOW, true, &gpio_callback);
-  gpio_set_dormant_irq_enabled(EVSE_CP, GPIO_IRQ_LEVEL_LOW, true);
-  clocks_hw->sleep_en0 = 0;
-  clocks_hw->sleep_en1 = 0;
-  xosc_dormant();
-  reconfigure_clocks();
-  gpio_set_irq_enabled_with_callback(EVSE_CP, GPIO_IRQ_LEVEL_LOW, false, &gpio_callback);
-  restore_interrupts(s);
-  SPI_configure();
-  gpio_put(CAN_SLEEP, 0);  // Wake the CAN transceiver
-  CAN_reg_write(REG_CANCTRL, MODE_NORMAL);
-  tud_connect();
-  stdio_usb_init();  // Restore USB
-}
-
 int usb_suspended() { return (usb_hw->sie_status & USB_SIE_STATUS_SUSPENDED_BITS); }
-
-float temperature(uint16_t adc) {
-  float r = 0.0000000347363427499292f * adc * adc - 0.001025770762903f * adc + 2.68235340614337f;
-  float t = log(r) * -30.5280964239816f + 95.6841501312447f;
-  return t;
-}
 
 int main() {
   // Set system clock to 80MHz
@@ -323,9 +296,37 @@ int main() {
   // Main loop.
   while (1) {
     // Sleep for a minimum of 100ms per loop
-    busy_wait_ms(50);
+    busy_wait_ms(20);
     CAN_receive();
-    busy_wait_ms(50);
+    CAN_receive();
+    CAN_receive();
+    busy_wait_ms(20);
+    CAN_receive();
+    CAN_receive();
+    CAN_receive();
+    busy_wait_ms(20);
+    CAN_receive();
+    CAN_receive();
+    CAN_receive();
+    busy_wait_ms(20);
+    CAN_receive();
+    CAN_receive();
+    CAN_receive();
+    busy_wait_ms(20);
+    CAN_receive();
+    CAN_receive();
+    CAN_receive();
+    busy_wait_ms(20);
+    CAN_receive();
+    CAN_receive();
+    CAN_receive();
+    busy_wait_ms(20);
+    CAN_receive();
+    CAN_receive();
+    CAN_receive();
+    busy_wait_ms(20);
+    CAN_receive();
+    CAN_receive();
     CAN_receive();
 
     // Invalidate data if timer expires
@@ -346,14 +347,16 @@ int main() {
 
     if (pwm_value > 0) {
       for (int n = 0; n < 2; n++) {
-        if ((!max_cell[n] || !min_cell[n] || !max_temp[n] || !min_temp[n]) && charging) {
-          error = 1;  // Failed to receive CAN data while charging
-        } else if (max_cell[n] > 53739) {
-          error = 2;  // Over voltage on one cell
-        } else if (max_temp[n] && temperature(max_temp[n]) > 45.f) {
-          error = 3;  // Over temperature
-        } else if (min_temp[n] && temperature(min_temp[n]) < 2.f) {
-          error = 4;  // Under temperature
+        if(charging) {
+          if ((!max_cell[n] || !min_cell[n] || !max_temp[n] || !min_temp[n])) {
+            error = 1;  // Failed to receive CAN data while charging
+          } else if (max_cell[n] > 53739) {
+            error = 2;  // Over voltage on one cell
+          } else if (max_temp[n] && temperature(max_temp[n]) > 45.f) {
+            error = 3;  // Over temperature
+          } else if (min_temp[n] && temperature(min_temp[n]) < 2.f) {
+            error = 4;  // Under temperature
+          }
         }
       }
       if (error) {
@@ -409,7 +412,7 @@ int main() {
       max_temp[1] = 0;
       min_temp[1] = 0;
       // Go into low power sleep unless USB active
-      if (usb_suspended()) deep_sleep();
+      //if (usb_suspended()) deep_sleep();
     }
   }
 }
