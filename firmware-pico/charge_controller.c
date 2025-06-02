@@ -12,6 +12,7 @@
 #include "hardware/regs/usb.h"
 #include "hardware/rosc.h"
 #include "hardware/spi.h"
+#include "hardware/timer.h"
 #include "hardware/structs/usb.h"
 #include "hardware/sync.h"
 #include "hardware/xosc.h"
